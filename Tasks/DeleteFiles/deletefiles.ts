@@ -3,10 +3,19 @@
 import path = require('path');
 import os = require('os');
 import tl = require('vsts-task-lib/task');
+tl.setResourcePath(path.join(__dirname, 'task.json'));
 
 // contents is a multiline input containing glob patterns
 var contents: string[] = tl.getDelimitedInput('Contents', '\n', true);
 var sourceFolder = tl.getPathInput('SourceFolder', true, true);
+
+// For backward compatability with pre-sprint95 symbol store artifacts,
+// check to make sure the folder isn't a symbol store share.
+var buildCleanup = tl.getBoolInput('BuildCleanup');
+if (buildCleanup && tl.exist(path.join(sourceFolder, '000Admin'))) {
+    tl.warning(tl.loc('SkippingSymbolStore', sourceFolder))
+    process.exit(0);
+}
 
 // include filter
 var includeContents = [];
