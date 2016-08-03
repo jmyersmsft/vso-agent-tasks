@@ -14,7 +14,10 @@ import {NuGetConfigHelper} from "nuget-task-common/NuGetConfigHelper";
 import * as ngToolRunner from "nuget-task-common/NuGetToolRunner";
 import * as nutil from "nuget-task-common/Utility";
 
+tl._writeLine("This is a private build of the NuGet Publisher task.");
+
 class PublishOptions implements INuGetCommandOptions {
+
     constructor(
         public nuGetPath: string,
         public feedUri: string,

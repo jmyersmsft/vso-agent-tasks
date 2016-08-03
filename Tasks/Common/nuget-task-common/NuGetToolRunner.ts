@@ -109,7 +109,8 @@ interface LocateOptions {
 }
 
 function locateTool(tool: string, opts?: LocateOptions) {
-    let searchPath = ["externals/nuget", "agent/Worker/Tools/NuGetCredentialProvider", "agent/Worker/Tools"];
+    let localPath = path.join(__dirname, "../..");
+    let searchPath = [localPath, "externals/nuget", "agent/Worker/Tools/NuGetCredentialProvider", "agent/Worker/Tools"];
     let agentRoot = tl.getVariable("Agent.HomeDirectory");
 
     opts = opts || {};
@@ -121,7 +122,7 @@ function locateTool(tool: string, opts?: LocateOptions) {
         tl.debug(`looking for tool variant ${thisVariant}`);
 
         for (let possibleLocation of searchPath) {
-            let fullPath = path.join(agentRoot, possibleLocation, thisVariant);
+            let fullPath = path.resolve(agentRoot, possibleLocation, thisVariant);
             tl.debug(`checking ${fullPath}`);
             if (tl.exist(fullPath)) {
                 return fullPath;

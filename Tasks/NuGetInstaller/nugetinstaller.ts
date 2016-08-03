@@ -14,6 +14,8 @@ import {NuGetConfigHelper} from "nuget-task-common/NuGetConfigHelper";
 import * as ngToolRunner from "nuget-task-common/NuGetToolRunner";
 import * as nutil from "nuget-task-common/Utility";
 
+tl._writeLine("This is a private build of the NuGet Installer task.");
+
 class RestoreOptions implements INuGetCommandOptions {
     constructor(
         public restoreMode: string,
