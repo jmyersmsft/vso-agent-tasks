@@ -17,6 +17,8 @@ import {NuGetConfigHelper} from 'nuget-task-common/NuGetConfigHelper';
 import * as locationApi from 'nuget-task-common/LocationApi';
 import * as os from 'os';
 
+tl._writeLine("This is a private build of the NuGet Publisher task.");
+
 class PublishOptions {
     constructor(
         public nuGetPath: string,

@@ -16,6 +16,8 @@ import * as auth from 'nuget-task-common/Authentication'
 import {NuGetConfigHelper} from 'nuget-task-common/NuGetConfigHelper'
 import * as os from 'os';
 
+tl._writeLine("This is a private build of the NuGet Installer task.");
+
 class RestoreOptions {
     constructor(
         public restoreMode: string,
