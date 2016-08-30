@@ -167,7 +167,7 @@ gulp.task('globalExternals', function(done) {
 // Load the dependency references to the intra-repo modules.
 var commonDeps = require('./common.json');
 
-const compileLock = lock.unlimited; //(5);
+const compileLock = lock(30);
 
 const taskCleanTasks = [];
 const taskCompileTasks = [];
