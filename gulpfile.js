@@ -83,6 +83,7 @@ var _tasksRoot = path.join(__dirname, 'Tasks');
 
 const compileLock = lock(5);
 
+const taskCleanTasks = [];
 const taskCompileTasks = [];
 const taskBuildTasks = []
 for(const taskName of fs.readdirSync(_tasksRoot)) {
@@ -100,6 +101,7 @@ for(const taskName of fs.readdirSync(_tasksRoot)) {
     const taskBuildTaskName = `buildTask-${taskName}`
     taskCompileTasks.push(taskCompileTaskName)
     taskBuildTasks.push(taskBuildTaskName)
+    taskCleanTasks.push(taskCleanTaskName)
 
     gulp.task(taskCleanTaskName, function(done) {
         del([taskOutputPath], done)
@@ -187,6 +189,7 @@ for(const taskName of fs.readdirSync(_tasksRoot)) {
 
 gulp.task('compileAllTasks', taskCompileTasks)
 gulp.task('buildAllTasks', taskBuildTasks)
+gulp.task('cleanAllTasks', taskCleanTasks)
 
 //-----------------------------------------------------------------------------------------------------------------
 // Build Tasks
