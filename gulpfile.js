@@ -5,6 +5,8 @@ var fs = require('fs');
 var path = require('path');
 var os = require('os');
 
+var util = require('util')
+
 // build/test script
 var admZip = require('adm-zip');
 var minimist = require('minimist');
@@ -22,6 +24,7 @@ var gutil = require('gulp-util');
 var pkgm = require('./package');
 var typescript = require('typescript');
 var zip = require('gulp-zip');
+var lock = require('gulp-lock');
 
 // validation
 var NPM_MIN_VER = '3.0.0';
@@ -76,6 +79,114 @@ var _pkgRoot = path.join(__dirname, '_package');
 var _oldPkg = path.join(__dirname, 'Package');
 var _wkRoot = path.join(__dirname, '_working');
 var _tempPath = path.join(__dirname, '_temp');
+var _tasksRoot = path.join(__dirname, 'Tasks');
+
+const compileLock = lock(5);
+
+const taskCompileTasks = [];
+const taskBuildTasks = []
+for(const taskName of fs.readdirSync(_tasksRoot)) {
+    const taskPath = path.join(_tasksRoot, taskName);
+    const taskOutputPath = path.join(_buildRoot, taskName);
+    const taskJson = path.join (taskPath, 'task.json');
+    if(!fs.existsSync(taskJson))
+    {
+        continue;
+    }
+
+    const taskCleanTaskName = `cleanTask-${taskName}`
+    const taskCompileTaskName = `compileTask-${taskName}`
+    const taskExternalsTaskName = `externalsTask-${taskName}`
+    const taskBuildTaskName = `buildTask-${taskName}`
+    taskCompileTasks.push(taskCompileTaskName)
+    taskBuildTasks.push(taskBuildTaskName)
+
+    gulp.task(taskCleanTaskName, function(done) {
+        del([taskOutputPath], done)
+    })
+
+    const taskCompileTaskDependencies = [taskCleanTaskName]
+    const externalsJson = path.join(taskPath, 'externals.json');
+    if(fs.existsSync(externalsJson)) {
+        gulp.task(taskExternalsTaskName, [taskCleanTaskName], function(done) {
+            try {
+                // Cache all externals in the download directory.
+                // Load the externals.json file.
+                console.log('Loading ' + externalsJson);
+                var externals = require(externalsJson);
+
+                // Check for NPM externals.
+                if (externals.npm) {
+                    // Walk the dictionary.
+                    var packageNames = Object.keys(externals.npm);
+                    packageNames.forEach(function (packageName) {
+                        // Cache the NPM package.
+                        var packageVersion = externals.npm[packageName];
+                        cacheNpmPackage(packageName, packageVersion);
+                    });
+                }
+
+                // Check for NuGetV2 externals.
+                if (externals.nugetv2) {
+                    // Walk the dictionary.
+                    var packageNames = Object.keys(externals.nugetv2);
+                    packageNames.forEach(function (packageName) {
+                        // Cache the NuGet V2 package.
+                        var packageVersion = externals.nugetv2[packageName].version;
+                        var packageRepository = externals.nugetv2[packageName].repository;
+                        cacheNuGetV2Package(packageRepository, packageName, packageVersion);
+                    })
+                }
+
+                // Check for archive files.
+                if (externals.archivePackages) {
+                    // Walk the array.
+                    externals.archivePackages.forEach(function (archive) {
+                        // Cache the archive file.
+                        cacheArchiveFile(archive.url);
+                    });
+                }
+
+                done();
+            }
+            catch (err) {
+                console.log('error:' + err.message);
+                done(new gutil.PluginError('compileTasks', err.message));
+                return;
+            }
+        });
+
+        taskCompileTaskDependencies.push(taskExternalsTaskName);
+    }
+
+    gulp.task(taskCompileTaskName, taskCompileTaskDependencies, compileLock.stream(function() {
+        // can't re-ushe proj between compilations
+        // docs say createProject has to be called outside the task, but I think that's only
+        // if you want gulp.watch to work, and I think that's a non-goal right now.
+        const proj = gts.createProject('./tsconfig.json', { typescript: typescript });
+        var taskTSPath = path.join(taskPath, '**/*.ts');
+        console.log(`Compiling ${taskTSPath}`);
+
+        return gulp.src([taskTSPath, 'definitions/*.d.ts'], { base: './Tasks' })
+            .pipe(gts(proj))
+            .on('error', errorHandler)
+            .pipe(gulp.dest(taskPath))
+    }))
+
+    gulp.task(taskBuildTaskName, [taskCompileTaskName], function() {
+        // Load the dependency references to the intra-repo modules.
+        var commonDeps = require('./common.json');
+        var commonSrc = path.join(__dirname, 'Tasks/Common');
+
+        // Layout the tasks.
+        shell.mkdir('-p', _buildRoot);
+        return gulp.src(taskJson)
+            .pipe(pkgm.PackageTask(_buildRoot, commonDeps, commonSrc))
+    })
+}
+
+gulp.task('compileAllTasks', taskCompileTasks)
+gulp.task('buildAllTasks', taskBuildTasks)
 
 //-----------------------------------------------------------------------------------------------------------------
 // Build Tasks
@@ -221,6 +332,7 @@ gulp.task('test', ['testResources'], function () {
     return gulp.src([suitePath])
         .pipe(mocha({ reporter: 'spec', ui: 'bdd', useColors: !tfBuild }));
 });
+
 
 //-----------------------------------------------------------------------------------------------------------------
 // INTERNAL BELOW
