@@ -143,6 +143,23 @@ function compileTypescript(path) {
         .pipe(gulp.dest(_tasksRoot))
 }
 
+function generateCompileAndExternalsTasks(path, compileTaskName, externalsTaskName, cleanTaskName) {
+    let compileTaskDependencies = cleanTaskName ? [cleanTaskName] : [];
+
+    const externalsJson = path.join(path, 'externals.json');
+    if(fs.existsSync(externalsJson)) {
+        gulp.task(externalsTaskName, cleanTaskName ? [cleanTaskName] : [], function(done) {
+            getExternals(externalsJson, done);
+        });
+
+        compileTaskDependencies.push(taskExternalsTaskName);
+    }
+
+    gulp.task(compileTaskName, compileTaskDependencies, compileLock.stream(function() {
+        return compileTypescript(taskPath);
+    }))
+}
+
 gulp.task('globalExternals', function(done) {
     getExternals(path.join(__dirname, 'externals.json'), done);
 })
@@ -155,7 +172,16 @@ const compileLock = lock(5);
 const taskCleanTasks = [];
 const taskCompileTasks = [];
 const taskBuildTasks = [];
-for(const taskName of fs.readdirSync(_tasksRoot)) {
+
+for (const moduleName of fs.readdirSync(_commonRoot)) {
+    const modulePath = path.join(_commonRoot, modulePath);
+    const moduleCompileTaskName = `compileModule-${taskName}`
+    const moduleExternalsTaskName = `externalsModule-${taskName}`
+
+    generateCompileAndExternalsTasks(modulePath, moduleCompileTaskName, moduleExternalsTaskName, null)
+}
+
+for (const taskName of fs.readdirSync(_tasksRoot)) {
     const taskPath = path.join(_tasksRoot, taskName);
     const taskOutputPath = path.join(_buildRoot, taskName);
     const taskJson = path.join (taskPath, 'task.json');
@@ -176,21 +202,15 @@ for(const taskName of fs.readdirSync(_tasksRoot)) {
         del([taskOutputPath], done)
     })
 
-    const taskCompileTaskDependencies = [taskCleanTaskName, 'globalExternals']
-    const externalsJson = path.join(taskPath, 'externals.json');
-    if(fs.existsSync(externalsJson)) {
-        gulp.task(taskExternalsTaskName, [taskCleanTaskName], function(done) {
-            getExternals(externalsJson, done);
-        });
+    generateCompileAndExternalsTasks(taskPath, taskCompileTaskName, taskExternalsTaskName, taskCleanTaskName);
 
-        taskCompileTaskDependencies.push(taskExternalsTaskName);
+    let dependencyCompileTasks = []
+    if(commonDeps[taskName])
+    {
+        dependencyCompileTasks = commonDeps[taskName].map(x => `compileModule-${x.module}`);
     }
 
-    gulp.task(taskCompileTaskName, taskCompileTaskDependencies, compileLock.stream(function() {
-        return compileTypescript(taskPath);
-    }))
-
-    gulp.task(taskBuildTaskName, [taskCompileTaskName], function() {
+    gulp.task(taskBuildTaskName, [taskCompileTaskName, 'globalExternals'].concat(dependencyCompileTasks), function() {
 
         // Layout the tasks.
         shell.mkdir('-p', _buildRoot);
