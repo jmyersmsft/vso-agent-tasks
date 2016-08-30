@@ -129,12 +129,12 @@ function getExternals(externalsJson, done) {
     }
 }
 
-function compileTypescript(path) {
+function compileTypescript(modulePath) {
     // can't re-use the proj between compilations
     // docs say createProject has to be called outside the task, but I think that's only
     // if you want gulp.watch to work, and I think that's a non-goal right now.
     const proj = gts.createProject('./tsconfig.json', { typescript: typescript });
-    var taskTSPath = path.join(path, '**/*.ts');
+    var taskTSPath = path.join(modulePath, '**/*.ts');
     console.log(`Compiling ${taskTSPath}`);
 
     return gulp.src([taskTSPath, 'definitions/*.d.ts'], { base: './Tasks' })
@@ -143,20 +143,20 @@ function compileTypescript(path) {
         .pipe(gulp.dest(_tasksRoot))
 }
 
-function generateCompileAndExternalsTasks(path, compileTaskName, externalsTaskName, cleanTaskName) {
+function generateCompileAndExternalsTasks(modulePath, compileTaskName, externalsTaskName, cleanTaskName) {
     let compileTaskDependencies = cleanTaskName ? [cleanTaskName] : [];
 
-    const externalsJson = path.join(path, 'externals.json');
+    const externalsJson = path.join(modulePath, 'externals.json');
     if(fs.existsSync(externalsJson)) {
         gulp.task(externalsTaskName, cleanTaskName ? [cleanTaskName] : [], function(done) {
             getExternals(externalsJson, done);
         });
 
-        compileTaskDependencies.push(taskExternalsTaskName);
+        compileTaskDependencies.push(externalsTaskName);
     }
 
     gulp.task(compileTaskName, compileTaskDependencies, compileLock.stream(function() {
-        return compileTypescript(taskPath);
+        return compileTypescript(modulePath);
     }))
 }
 
@@ -167,18 +167,24 @@ gulp.task('globalExternals', function(done) {
 // Load the dependency references to the intra-repo modules.
 var commonDeps = require('./common.json');
 
-const compileLock = lock(5);
+const compileLock = lock.unlimited; //(5);
 
 const taskCleanTasks = [];
 const taskCompileTasks = [];
 const taskBuildTasks = [];
 
 for (const moduleName of fs.readdirSync(_commonRoot)) {
-    const modulePath = path.join(_commonRoot, modulePath);
-    const moduleCompileTaskName = `compileModule-${taskName}`
-    const moduleExternalsTaskName = `externalsModule-${taskName}`
+    const modulePath = path.join(_commonRoot, moduleName);
+    const moduleCompileTaskName = `compileModule-${moduleName}`
+    const moduleExternalsTaskName = `externalsModule-${moduleName}`
+    const moduleLocTaskName = `locModule-${moduleName}`
 
-    generateCompileAndExternalsTasks(modulePath, moduleCompileTaskName, moduleExternalsTaskName, null)
+    gulp.task(moduleLocTaskName, function() {   
+        return gulp.src(path.join(modulePath, 'module.json'))
+            .pipe(pkgm.LocCommon());
+    })
+
+    generateCompileAndExternalsTasks(modulePath, moduleCompileTaskName, moduleExternalsTaskName, moduleLocTaskName)
 }
 
 for (const taskName of fs.readdirSync(_tasksRoot)) {
@@ -220,7 +226,7 @@ for (const taskName of fs.readdirSync(_tasksRoot)) {
 }
 
 gulp.task('compileAllTasks', taskCompileTasks)
-gulp.task('buildAllTasks', taskBuildTasks.concat)
+gulp.task('buildAllTasks', taskBuildTasks)
 gulp.task('cleanAllTasks', taskCleanTasks)
 
 //-----------------------------------------------------------------------------------------------------------------
